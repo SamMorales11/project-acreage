@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# ML Models (Opsional: Jika file .joblib sangat besar, sebaiknya jangan di-push)
+# Namun untuk portofolio, file .joblib kecil biasanya tetap di-push agar orang lain bisa mencoba.
+# backend/models/*.joblib
+
+# Node (Frontend)
+node_modules/
+dist/
+.DS_Store
