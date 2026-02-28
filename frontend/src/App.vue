@@ -16,10 +16,9 @@ const isLoading = ref(false)
 let chartInstance = null
 
 /**
- * HELPER: Mengubah angka menjadi format Rupiah (Rp xx.xxx.xxx)
+ * HELPER: Format angka ke Rupiah
  */
 const formatRupiah = (number) => {
-  // Kita kalikan 1.000.000 karena model mengembalikan nilai dalam satuan "Juta"
   const fullValue = number * 1000000;
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -93,43 +92,43 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 font-sans text-gray-900">
+  <div class="flex flex-col min-h-screen bg-gray-50 font-sans text-gray-900">
     <nav class="bg-acreage-dark p-4 shadow-lg text-white">
       <div class="container mx-auto flex justify-between items-center">
         <h1 class="text-2xl font-bold tracking-tight italic uppercase">Acreage <span class="text-blue-400">.</span></h1>
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-2 text-xs font-mono uppercase tracking-widest text-gray-300">
           <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-          <span class="text-xs font-mono uppercase tracking-widest text-gray-300">ML Engine Active</span>
+          <span>ML Engine Active</span>
         </div>
       </div>
     </nav>
 
-    <main class="container mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <main class="flex-grow container mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
       
-      <section class="lg:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <section class="lg:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
         <h2 class="text-lg font-bold mb-6 text-gray-800 uppercase tracking-tight">Property Specs</h2>
         <form @submit.prevent="getPrediction" class="space-y-5">
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Tanah (m²)</label>
-            <input v-model="form.luas_tanah" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
+            <input v-model="form.luas_tanah" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Bangunan (m²)</label>
-            <input v-model="form.luas_bangunan" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
+            <input v-model="form.luas_bangunan" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bedrooms</label>
-              <input v-model="form.kamar_tidur" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
+              <input v-model="form.kamar_tidur" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bathrooms</label>
-              <input v-model="form.kamar_mandi" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
+              <input v-model="form.kamar_mandi" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
             </div>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Location Tier</label>
-            <select v-model="form.lokasi_skor" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
+            <select v-model="form.lokasi_skor" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
               <option value="1">Tier 1 - Pinggiran</option>
               <option value="2">Tier 2 - Urban/Menengah</option>
               <option value="3">Tier 3 - Pusat Bisnis (CBD)</option>
@@ -164,5 +163,31 @@ onMounted(() => {
         </div>
       </section>
     </main>
+
+    <footer class="bg-white border-t border-gray-100 py-8 mt-auto">
+      <div class="container mx-auto px-4">
+        <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-bold italic tracking-tighter uppercase">Acreage <span class="text-blue-500">.</span></span>
+            <span class="text-[10px] text-gray-400 border border-gray-200 px-2 py-0.5 rounded uppercase">v1.2.0</span>
+          </div>
+          <div class="text-center md:text-right">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-widest">
+              &copy; 2026 Developed by <span class="text-blue-600 font-bold">Samuel</span>
+            </p>
+            <p class="text-[10px] text-gray-400 mt-1">
+              Built with Vue 3, Tailwind v4, & FastAPI (Random Forest)
+            </p>
+          </div>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
+
+<style scoped>
+/* Transisi halus */
+input, select, button {
+  transition: all 0.2s ease-in-out;
+}
+</style>
