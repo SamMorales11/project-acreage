@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import api from './services/api'
 import Chart from 'chart.js/auto'
 
-// State untuk menyimpan input user
 const form = ref({
   luas_tanah: 100,
   luas_bangunan: 80,
@@ -12,18 +11,27 @@ const form = ref({
   lokasi_skor: 2
 })
 
-// State untuk hasil prediksi dan status loading
 const predictionResult = ref(0)
 const isLoading = ref(false)
 let chartInstance = null
 
 /**
- * Fungsi untuk mengambil prediksi harga dari backend FastAPI
+ * HELPER: Mengubah angka menjadi format Rupiah (Rp xx.xxx.xxx)
  */
+const formatRupiah = (number) => {
+  // Kita kalikan 1.000.000 karena model mengembalikan nilai dalam satuan "Juta"
+  const fullValue = number * 1000000;
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(fullValue);
+}
+
 const getPrediction = async () => {
   isLoading.value = true
   try {
-    // REVISI: Memastikan semua payload dikirim sebagai tipe Number (bukan String)
     const payload = {
       luas_tanah: Number(form.value.luas_tanah),
       luas_bangunan: Number(form.value.luas_bangunan),
@@ -36,15 +44,12 @@ const getPrediction = async () => {
     predictionResult.value = response.data.estimasi_harga
   } catch (error) {
     console.error("Gagal mengambil prediksi:", error)
-    alert("Gagal terhubung ke server AI. Pastikan Backend (FastAPI) sudah menyala.")
+    alert("Gagal terhubung ke server AI.")
   } finally {
     isLoading.value = false
   }
 }
 
-/**
- * Fungsi untuk mengambil data Feature Importance (XAI)
- */
 const loadAnalytics = async () => {
   try {
     const response = await api.getAnalytics()
@@ -56,9 +61,6 @@ const loadAnalytics = async () => {
   }
 }
 
-/**
- * Fungsi untuk merender grafik menggunakan Chart.js
- */
 const renderChart = (labels, values) => {
   const ctx = document.getElementById('importanceChart')
   if (chartInstance) chartInstance.destroy()
@@ -72,25 +74,19 @@ const renderChart = (labels, values) => {
         data: values,
         backgroundColor: '#3b82f6',
         borderRadius: 8,
-        borderSkipped: false,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      indexAxis: 'y', // Membuat bar chart horizontal agar lebih mudah dibaca
+      indexAxis: 'y',
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw}% pengaruh` } }
-      },
-      scales: {
-        x: { grid: { display: false }, max: Math.max(...values) + 5 }
+        legend: { display: false }
       }
     }
   })
 }
 
-// Lifecycle hook untuk inisialisasi awal
 onMounted(() => {
   loadAnalytics()
 })
@@ -117,12 +113,10 @@ onMounted(() => {
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Tanah (m²)</label>
             <input v-model="form.luas_tanah" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
           </div>
-          
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Bangunan (m²)</label>
             <input v-model="form.luas_bangunan" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
           </div>
-          
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bedrooms</label>
@@ -133,7 +127,6 @@ onMounted(() => {
               <input v-model="form.kamar_mandi" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
             </div>
           </div>
-
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Location Tier</label>
             <select v-model="form.lokasi_skor" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition">
@@ -142,9 +135,8 @@ onMounted(() => {
               <option value="3">Tier 3 - Pusat Bisnis (CBD)</option>
             </select>
           </div>
-
           <button type="submit" :disabled="isLoading" 
-            class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50">
+            class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50">
             {{ isLoading ? 'Predicting...' : 'Analyze Price' }}
           </button>
         </form>
@@ -154,8 +146,8 @@ onMounted(() => {
         <div class="bg-gradient-to-br from-blue-600 to-indigo-800 text-white p-10 rounded-2xl shadow-xl relative overflow-hidden">
           <div class="relative z-10">
             <p class="text-blue-100 text-xs font-black uppercase tracking-[0.2em] mb-2 opacity-80">Estimated Market Value</p>
-            <h3 class="text-5xl md:text-6xl font-black tracking-tighter">
-              Rp {{ predictionResult.toLocaleString('id-ID') }} <span class="text-2xl font-normal opacity-70">Million</span>
+            <h3 class="text-4xl md:text-5xl font-black tracking-tighter">
+              {{ formatRupiah(predictionResult) }}
             </h3>
             <p class="mt-4 text-sm text-blue-200 italic font-light">*Berdasarkan analisis algoritma Random Forest Regressor</p>
           </div>
@@ -165,27 +157,12 @@ onMounted(() => {
         </div>
 
         <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex justify-between items-center mb-6">
-            <h3 class="text-sm font-black text-gray-400 uppercase tracking-widest">Model Explanation (XAI)</h3>
-            <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded">Feature Importance</span>
-          </div>
+          <h3 class="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">Model Explanation (XAI)</h3>
           <div class="h-[300px] w-full">
             <canvas id="importanceChart"></canvas>
           </div>
         </div>
       </section>
-
     </main>
-
-    <footer class="text-center py-8 text-gray-400 text-xs uppercase tracking-widest font-medium">
-      Acreage Analytics Dashboard &copy; 2026 - Built with Vue 3 & FastAPI
-    </footer>
   </div>
 </template>
-
-<style scoped>
-/* Transisi halus untuk input */
-input, select {
-  border: 1px solid #e5e7eb;
-}
-</style>
