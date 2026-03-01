@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// Ganti URL ini setelah Anda mendapatkan domain dari Render/Railway
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
 const apiClient = axios.create({
-  baseURL: API_URL,
+  // URL ini mengarah langsung ke server Hugging Face Anda
+  baseURL: 'https://semskii1-acreage-api.hf.space', 
   headers: {
     'Content-Type': 'application/json',
   },
