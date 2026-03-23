@@ -15,9 +15,6 @@ const predictionResult = ref(0)
 const isLoading = ref(false)
 let chartInstance = null
 
-/**
- * HELPER: Format angka ke Rupiah
- */
 const formatRupiah = (number) => {
   const fullValue = number * 1000000;
   return new Intl.NumberFormat('id-ID', {
@@ -43,7 +40,7 @@ const getPrediction = async () => {
     predictionResult.value = response.data.estimasi_harga
   } catch (error) {
     console.error("Gagal mengambil prediksi:", error)
-    alert("Gagal terhubung ke server AI.")
+    alert("Koneksi ke server analitik terputus. Silakan coba lagi.")
   } finally {
     isLoading.value = false
   }
@@ -67,12 +64,28 @@ const renderChart = (labels, values) => {
   chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: labels.map(l => l.replace('_', ' ').toUpperCase()),
+      // Normalisasi label dari backend (misal: "LUAS TANAH" menjadi "luas_tanah") 
+      // agar terdeteksi kamus bahasa Inggris kita
+      labels: labels.map(l => {
+        const normalizedKey = String(l).toLowerCase().replace(/\s+/g, '_');
+        const proLabels = {
+          luas_tanah: 'Lot Area',
+          luas_bangunan: 'Building Area',
+          kamar_tidur: 'Bedrooms',
+          kamar_mandi: 'Bathrooms',
+          lokasi: 'Location Tier',
+          lokasi_skor: 'Location Tier'
+        };
+        return proLabels[normalizedKey] || String(l).toUpperCase();
+      }),
       datasets: [{
-        label: 'Tingkat Pengaruh (%)',
+        label: ' Feature Impact (%)',
         data: values,
-        backgroundColor: '#3b82f6',
-        borderRadius: 8,
+        backgroundColor: '#3b82f6', // Biru terang modern
+        hoverBackgroundColor: '#60a5fa', // Lebih terang saat di-hover
+        borderRadius: 50, // Membuat ujung bar berbentuk pill/kapsul
+        barPercentage: 0.4, // Membuat bar lebih ramping/tipis
+        borderSkipped: false // Memastikan semua sudut melengkung sempurna
       }]
     },
     options: {
@@ -80,7 +93,31 @@ const renderChart = (labels, values) => {
       maintainAspectRatio: false,
       indexAxis: 'y',
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          titleFont: { size: 12, family: 'Inter, sans-serif', color: '#94a3b8' },
+          bodyFont: { size: 14, weight: 'bold', family: 'Inter, sans-serif' },
+          padding: 12,
+          cornerRadius: 8,
+          displayColors: false,
+          borderColor: 'rgba(59, 130, 246, 0.2)',
+          borderWidth: 1
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false, drawBorder: false },
+          ticks: { display: false }
+        },
+        y: {
+          grid: { display: false, drawBorder: false }, // Menghilangkan garis horisontal sepenuhnya
+          ticks: { 
+            color: '#94a3b8', // Warna teks abu-abu terang agar tidak terlalu mencolok
+            font: { size: 11, weight: '600', family: 'Inter, sans-serif', tracking: 'widest' },
+            padding: 10 // Memberi jarak antara teks dan bar
+          }
+        }
       }
     }
   })
@@ -92,93 +129,158 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col min-h-screen bg-gray-50 font-sans text-gray-900">
-    <nav class="bg-acreage-dark p-4 shadow-lg text-white">
-      <div class="container mx-auto flex justify-between items-center">
-        <h1 class="text-2xl font-bold tracking-tight italic uppercase">Acreage <span class="text-blue-400">.</span></h1>
-        <div class="flex items-center space-x-2 text-xs font-mono uppercase tracking-widest text-gray-300">
-          <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-          <span>ML Engine Active</span>
+  <div class="flex flex-col min-h-screen bg-[#0f172a] font-sans selection:bg-blue-500 selection:text-white">
+    
+    <nav class="sticky top-0 z-50 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800 px-6 py-4">
+      <div class="max-w-7xl mx-auto flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight text-white uppercase">
+            Acreage<span class="text-blue-500">.</span>
+          </h1>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/50 border border-slate-700">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-[10px] font-bold text-slate-300 tracking-widest uppercase">System Online</span>
         </div>
       </div>
     </nav>
 
-    <main class="flex-grow container mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <main class="flex-grow w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       
-      <section class="lg:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
-        <h2 class="text-lg font-bold mb-6 text-gray-800 uppercase tracking-tight">Property Specs</h2>
-        <form @submit.prevent="getPrediction" class="space-y-5">
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Tanah (m²)</label>
-            <input v-model="form.luas_tanah" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Luas Bangunan (m²)</label>
-            <input v-model="form.luas_bangunan" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bedrooms</label>
-              <input v-model="form.kamar_tidur" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bathrooms</label>
-              <input v-model="form.kamar_mandi" type="number" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Location Tier</label>
-            <select v-model="form.lokasi_skor" class="w-full rounded-lg border-gray-200 bg-gray-50 p-3 focus:ring-2 focus:ring-blue-500 outline-none transition border">
-              <option value="1">Tier 1 - Pinggiran</option>
-              <option value="2">Tier 2 - Urban/Menengah</option>
-              <option value="3">Tier 3 - Pusat Bisnis (CBD)</option>
-            </select>
-          </div>
-          <button type="submit" :disabled="isLoading" 
-            class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50">
-            {{ isLoading ? 'Predicting...' : 'Analyze Price' }}
-          </button>
-        </form>
-      </section>
+      <div class="mb-8">
+        <h2 class="text-3xl font-light text-white tracking-tight">Property Valuation <span class="font-bold text-blue-500">Engine</span></h2>
+        <p class="mt-2 text-sm text-slate-400">Configure architectural parameters to generate localized market estimations.</p>
+      </div>
 
-      <section class="lg:col-span-8 space-y-6">
-        <div class="bg-gradient-to-br from-blue-600 to-indigo-800 text-white p-10 rounded-2xl shadow-xl relative overflow-hidden">
-          <div class="relative z-10">
-            <p class="text-blue-100 text-xs font-black uppercase tracking-[0.2em] mb-2 opacity-80">Estimated Market Value</p>
-            <h3 class="text-4xl md:text-5xl font-black tracking-tighter">
-              {{ formatRupiah(predictionResult) }}
-            </h3>
-            <p class="mt-4 text-sm text-blue-200 italic font-light">*Berdasarkan analisis algoritma Random Forest Regressor</p>
-          </div>
-          <div class="absolute -right-10 -bottom-10 opacity-10">
-            <svg class="w-64 h-64" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
-          </div>
-        </div>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <section class="lg:col-span-4 bg-[#1e293b] rounded-2xl border border-slate-700/50 shadow-2xl p-6 h-fit relative overflow-hidden">
+          <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
 
-        <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h3 class="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">Model Explanation (XAI)</h3>
-          <div class="h-[300px] w-full">
-            <canvas id="importanceChart"></canvas>
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Input Parameters</h3>
           </div>
-        </div>
-      </section>
+
+          <form @submit.prevent="getPrediction" class="space-y-5 relative z-10">
+            <div class="space-y-1.5">
+              <label class="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Lot Area</span>
+                <span class="text-slate-500 font-mono">m²</span>
+              </label>
+              <input v-model="form.luas_tanah" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Building Area</span>
+                <span class="text-slate-500 font-mono">m²</span>
+              </label>
+              <input v-model="form.luas_bangunan" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bedrooms</label>
+                <input v-model="form.kamar_tidur" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white text-center focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bathrooms</label>
+                <input v-model="form.kamar_mandi" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white text-center focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Strategic Tier</label>
+              <div class="relative">
+                <select v-model="form.lokasi_skor" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner cursor-pointer">
+                  <option value="1">Tier 1 • Outskirts / Rural</option>
+                  <option value="2">Tier 2 • Urban Residential</option>
+                  <option value="3">Tier 3 • Central Business District</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-4">
+              <button type="submit" :disabled="isLoading" 
+                class="relative w-full overflow-hidden rounded-xl bg-blue-600 px-4 py-4 text-sm font-bold tracking-widest text-white uppercase transition-all hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed group">
+                <span class="relative z-10 flex items-center justify-center gap-2">
+                  <svg v-if="isLoading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  {{ isLoading ? 'Processing Data...' : 'Generate Valuation' }}
+                </span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="lg:col-span-8 space-y-6">
+          
+          <div class="relative bg-gradient-to-br from-blue-900 to-[#0f172a] rounded-2xl border border-blue-500/20 shadow-2xl p-8 sm:p-10 overflow-hidden group">
+            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)]"></div>
+            
+            <div class="relative z-10 flex flex-col h-full justify-between">
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="h-px w-6 bg-blue-500"></span>
+                  <p class="text-blue-400 text-xs font-bold uppercase tracking-[0.2em]">Predicted Asset Value</p>
+                </div>
+                
+                <h3 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tighter mt-4 flex items-baseline gap-2">
+                  <span v-if="isLoading" class="animate-pulse text-slate-600">Calculating</span>
+                  <span v-else class="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+                    {{ formatRupiah(predictionResult) }}
+                  </span>
+                </h3>
+              </div>
+
+              <div class="mt-8 flex items-center justify-between border-t border-slate-700/50 pt-6">
+                <p class="text-xs text-slate-400 font-mono tracking-wide">
+                  MODEL: <span class="text-blue-400">RANDOM_FOREST_REGRESSOR</span>
+                </p>
+                <div class="w-12 h-12 rounded-full border border-slate-700 flex items-center justify-center bg-[#0f172a]">
+                  <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-[#1e293b] rounded-2xl border border-slate-700/50 p-6 shadow-xl">
+            <div class="flex justify-between items-end mb-6">
+              <div>
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-1">Explainable AI (XAI)</h3>
+                <p class="text-[11px] text-slate-400">Algorithmic feature importance distribution</p>
+              </div>
+            </div>
+            <div class="h-[260px] w-full">
+              <canvas id="importanceChart"></canvas>
+            </div>
+          </div>
+
+        </section>
+      </div>
     </main>
 
-    <footer class="bg-white border-t border-gray-100 py-8 mt-auto">
-      <div class="container mx-auto px-4">
-        <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-          <div class="flex items-center space-x-2">
-            <span class="text-xl font-bold italic tracking-tighter uppercase">Acreage <span class="text-blue-500">.</span></span>
-            <span class="text-[10px] text-gray-400 border border-gray-200 px-2 py-0.5 rounded uppercase">v1.2.0</span>
-          </div>
-          <div class="text-center md:text-right">
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-widest">
-              &copy; 2026 Developed by <span class="text-blue-600 font-bold">Samuel</span>
-            </p>
-            <p class="text-[10px] text-gray-400 mt-1">
-              Built with Vue 3, Tailwind v4, & FastAPI (Random Forest)
-            </p>
-          </div>
+    <footer class="border-t border-slate-800 bg-[#0f172a] py-8 mt-auto">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-bold tracking-tight text-white italic uppercase">Acreage<span class="text-blue-500">.</span></span>
+          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v2.0.0</span>
+        </div>
+        <div class="text-center md:text-right">
+          <p class="text-[11px] font-medium text-slate-400 tracking-widest uppercase">
+            &copy; 2026 Engineered by <span class="text-blue-400 font-bold">Samuel</span>
+          </p>
+          <p class="text-[10px] text-slate-600 mt-1 font-mono">
+            STACK: VUE 3 / FASTAPI / SCIKIT-LEARN
+          </p>
         </div>
       </div>
     </footer>
@@ -186,8 +288,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Transisi halus */
-input, select, button {
-  transition: all 0.2s ease-in-out;
+/* Menghilangkan panah atas/bawah pada input number untuk tampilan yang lebih mulus */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
 }
 </style>
