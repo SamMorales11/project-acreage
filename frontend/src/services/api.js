@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const apiClient = axios.create({
   // URL ini mengarah langsung ke server Hugging Face Anda
-  baseURL: 'https://semskii1-acreage-api.hf.space', 
+  baseURL: 'http://127.0.0.1:8000', 
   headers: {
     'Content-Type': 'application/json',
   },
