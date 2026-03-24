@@ -52,3 +52,11 @@ If you want to run this project locally, follow these steps:
 ```bash
 git clone [https://github.com/yourusername/project-acreage.git](https://github.com/yourusername/project-acreage.git)
 cd project-acreage
+### 2. Setup the Backend (FastAPI)
+cd backend
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+### 3. Setup the Frontend (Vue.js)
+cd frontend
+npm install
+npm run dev
