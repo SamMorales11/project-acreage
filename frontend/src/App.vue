@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import api from './services/api'
 import Chart from 'chart.js/auto'
 
@@ -15,6 +15,7 @@ const predictionResult = ref(0)
 const isLoading = ref(false)
 let chartInstance = null
 
+// --- HELPER: FORMAT RUPIAH ---
 const formatRupiah = (number) => {
   const fullValue = number * 1000000;
   return new Intl.NumberFormat('id-ID', {
@@ -25,6 +26,18 @@ const formatRupiah = (number) => {
   }).format(fullValue);
 }
 
+// --- HELPER: DEBOUNCE FUNCTION ---
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      fn(...args);
+    }, delay);
+  };
+};
+
+// --- API CALLS ---
 const getPrediction = async () => {
   isLoading.value = true
   try {
@@ -40,7 +53,6 @@ const getPrediction = async () => {
     predictionResult.value = response.data.estimasi_harga
   } catch (error) {
     console.error("Gagal mengambil prediksi:", error)
-    alert("Koneksi ke server analitik terputus. Silakan coba lagi.")
   } finally {
     isLoading.value = false
   }
@@ -57,6 +69,17 @@ const loadAnalytics = async () => {
   }
 }
 
+// --- REAL-TIME WATCHER ---
+const debouncedPredict = debounce(() => {
+  getPrediction();
+}, 300);
+
+watch(form, () => {
+  debouncedPredict();
+}, { deep: true });
+
+
+// --- CHART LOGIC ---
 const renderChart = (labels, values) => {
   const ctx = document.getElementById('importanceChart')
   if (chartInstance) chartInstance.destroy()
@@ -64,8 +87,6 @@ const renderChart = (labels, values) => {
   chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
-      // Normalisasi label dari backend (misal: "LUAS TANAH" menjadi "luas_tanah") 
-      // agar terdeteksi kamus bahasa Inggris kita
       labels: labels.map(l => {
         const normalizedKey = String(l).toLowerCase().replace(/\s+/g, '_');
         const proLabels = {
@@ -81,11 +102,11 @@ const renderChart = (labels, values) => {
       datasets: [{
         label: ' Feature Impact (%)',
         data: values,
-        backgroundColor: '#3b82f6', // Biru terang modern
-        hoverBackgroundColor: '#60a5fa', // Lebih terang saat di-hover
-        borderRadius: 50, // Membuat ujung bar berbentuk pill/kapsul
-        barPercentage: 0.4, // Membuat bar lebih ramping/tipis
-        borderSkipped: false // Memastikan semua sudut melengkung sempurna
+        backgroundColor: '#3b82f6', 
+        hoverBackgroundColor: '#60a5fa', 
+        borderRadius: 50, 
+        barPercentage: 0.4, 
+        borderSkipped: false 
       }]
     },
     options: {
@@ -105,17 +126,21 @@ const renderChart = (labels, values) => {
           borderWidth: 1
         }
       },
+      animation: {
+        duration: 400, 
+        easing: 'easeOutQuart'
+      },
       scales: {
         x: {
           grid: { display: false, drawBorder: false },
           ticks: { display: false }
         },
         y: {
-          grid: { display: false, drawBorder: false }, // Menghilangkan garis horisontal sepenuhnya
+          grid: { display: false, drawBorder: false }, 
           ticks: { 
-            color: '#94a3b8', // Warna teks abu-abu terang agar tidak terlalu mencolok
+            color: '#94a3b8', 
             font: { size: 11, weight: '600', family: 'Inter, sans-serif', tracking: 'widest' },
-            padding: 10 // Memberi jarak antara teks dan bar
+            padding: 10 
           }
         }
       }
@@ -124,7 +149,8 @@ const renderChart = (labels, values) => {
 }
 
 onMounted(() => {
-  loadAnalytics()
+  loadAnalytics();
+  getPrediction(); 
 })
 </script>
 
@@ -146,7 +172,7 @@ onMounted(() => {
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span class="text-[10px] font-bold text-slate-300 tracking-widest uppercase">System Online</span>
+          <span class="text-[10px] font-bold text-slate-300 tracking-widest uppercase">Live ML Engine</span>
         </div>
       </div>
     </nav>
@@ -155,7 +181,7 @@ onMounted(() => {
       
       <div class="mb-8">
         <h2 class="text-3xl font-light text-white tracking-tight">Property Valuation <span class="font-bold text-blue-500">Engine</span></h2>
-        <p class="mt-2 text-sm text-slate-400">Configure architectural parameters to generate localized market estimations.</p>
+        <p class="mt-2 text-sm text-slate-400">Interact with the parameters below to generate real-time market estimations.</p>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -163,42 +189,56 @@ onMounted(() => {
         <section class="lg:col-span-4 bg-[#1e293b] rounded-2xl border border-slate-700/50 shadow-2xl p-6 h-fit relative overflow-hidden">
           <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
 
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Input Parameters</h3>
+          <div class="flex items-center justify-between mb-8">
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Live Simulator</h3>
+            <svg v-if="isLoading" class="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           </div>
 
-          <form @submit.prevent="getPrediction" class="space-y-5 relative z-10">
-            <div class="space-y-1.5">
-              <label class="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Lot Area</span>
-                <span class="text-slate-500 font-mono">m²</span>
-              </label>
-              <input v-model="form.luas_tanah" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Building Area</span>
-                <span class="text-slate-500 font-mono">m²</span>
-              </label>
-              <input v-model="form.luas_bangunan" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bedrooms</label>
-                <input v-model="form.kamar_tidur" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white text-center focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+          <form @submit.prevent class="space-y-8 relative z-10">
+            
+            <div class="space-y-3">
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1.5">Lot Area (m²)</label>
+              <div class="relative bg-slate-800/50 rounded-xl p-3 border border-slate-700/50 mb-3 shadow-inner">
+                <input v-model="form.luas_tanah" type="number" 
+                  class="w-full text-center text-6xl font-black text-blue-400 font-mono focus:outline-none bg-transparent"
+                  min="30" max="1000">
+                <span class="absolute right-4 bottom-2 text-sm font-semibold text-slate-500 font-mono">m²</span>
               </div>
-              <div class="space-y-1.5">
-                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bathrooms</label>
-                <input v-model="form.kamar_mandi" type="number" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white text-center focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner">
+              <input v-model="form.luas_tanah" type="range" min="30" max="1000" step="5" class="custom-slider w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="space-y-3">
+              <label class="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1.5">Building Area (m²)</label>
+              <div class="relative bg-slate-800/50 rounded-xl p-3 border border-slate-700/50 mb-3 shadow-inner">
+                <input v-model="form.luas_bangunan" type="number" 
+                  class="w-full text-center text-6xl font-black text-blue-400 font-mono focus:outline-none bg-transparent"
+                  min="20" max="800">
+                <span class="absolute right-4 bottom-2 text-sm font-semibold text-slate-500 font-mono">m²</span>
+              </div>
+              <input v-model="form.luas_bangunan" type="range" min="20" max="800" step="5" class="custom-slider w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+              <div class="space-y-3">
+                <label class="flex justify-between items-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Beds</span>
+                  <span class="text-blue-400 font-mono text-lg font-bold">{{ form.kamar_tidur }}</span>
+                </label>
+                <input v-model="form.kamar_tidur" type="range" min="1" max="10" step="1" class="custom-slider w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+              </div>
+              <div class="space-y-3">
+                <label class="flex justify-between items-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Baths</span>
+                  <span class="text-blue-400 font-mono text-lg font-bold">{{ form.kamar_mandi }}</span>
+                </label>
+                <input v-model="form.kamar_mandi" type="range" min="1" max="10" step="1" class="custom-slider w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
               </div>
             </div>
 
-            <div class="space-y-1.5">
+            <div class="space-y-3 pt-2">
               <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Strategic Tier</label>
               <div class="relative">
-                <select v-model="form.lokasi_skor" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner cursor-pointer">
+                <select v-model="form.lokasi_skor" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all cursor-pointer">
                   <option value="1">Tier 1 • Outskirts / Rural</option>
                   <option value="2">Tier 2 • Urban Residential</option>
                   <option value="3">Tier 3 • Central Business District</option>
@@ -208,34 +248,26 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-
-            <div class="pt-4">
-              <button type="submit" :disabled="isLoading" 
-                class="relative w-full overflow-hidden rounded-xl bg-blue-600 px-4 py-4 text-sm font-bold tracking-widest text-white uppercase transition-all hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed group">
-                <span class="relative z-10 flex items-center justify-center gap-2">
-                  <svg v-if="isLoading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  {{ isLoading ? 'Processing Data...' : 'Generate Valuation' }}
-                </span>
-              </button>
-            </div>
+            
           </form>
         </section>
 
         <section class="lg:col-span-8 space-y-6">
           
-          <div class="relative bg-gradient-to-br from-blue-900 to-[#0f172a] rounded-2xl border border-blue-500/20 shadow-2xl p-8 sm:p-10 overflow-hidden group">
+          <div class="relative bg-gradient-to-br from-blue-900 to-[#0f172a] rounded-2xl border border-blue-500/20 shadow-2xl p-8 sm:p-10 overflow-hidden group transition-all duration-300">
             <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)]"></div>
             
             <div class="relative z-10 flex flex-col h-full justify-between">
               <div>
                 <div class="flex items-center gap-2 mb-2">
-                  <span class="h-px w-6 bg-blue-500"></span>
-                  <p class="text-blue-400 text-xs font-bold uppercase tracking-[0.2em]">Predicted Asset Value</p>
+                  <span class="h-px w-6 bg-blue-500 transition-all duration-300" :class="{'w-12 bg-emerald-400': isLoading}"></span>
+                  <p class="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] transition-colors" :class="{'text-emerald-400': isLoading}">
+                    {{ isLoading ? 'Calculating...' : 'Predicted Asset Value' }}
+                  </p>
                 </div>
                 
-                <h3 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tighter mt-4 flex items-baseline gap-2">
-                  <span v-if="isLoading" class="animate-pulse text-slate-600">Calculating</span>
-                  <span v-else class="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+                <h3 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tighter mt-4 flex items-baseline gap-2 transition-all duration-300" :class="{'opacity-50 blur-[2px] scale-[0.98]': isLoading}">
+                  <span class="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
                     {{ formatRupiah(predictionResult) }}
                   </span>
                 </h3>
@@ -245,7 +277,7 @@ onMounted(() => {
                 <p class="text-xs text-slate-400 font-mono tracking-wide">
                   MODEL: <span class="text-blue-400">RANDOM_FOREST_REGRESSOR</span>
                 </p>
-                <div class="w-12 h-12 rounded-full border border-slate-700 flex items-center justify-center bg-[#0f172a]">
+                <div class="w-12 h-12 rounded-full border border-slate-700 flex items-center justify-center bg-[#0f172a]" :class="{'animate-pulse border-blue-500': isLoading}">
                   <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 </div>
               </div>
@@ -272,7 +304,7 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-xl font-bold tracking-tight text-white italic uppercase">Acreage<span class="text-blue-500">.</span></span>
-          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v2.0.0</span>
+          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v2.1.0</span>
         </div>
         <div class="text-center md:text-right">
           <p class="text-[11px] font-medium text-slate-400 tracking-widest uppercase">
@@ -288,7 +320,37 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Menghilangkan panah atas/bawah pada input number untuk tampilan yang lebih mulus */
+/* Custom Styling untuk Slider */
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6; 
+  cursor: pointer;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  transition: transform 0.1s ease-in-out;
+}
+.custom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  transition: transform 0.1s ease-in-out;
+}
+.custom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.custom-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Menghilangkan panah pada input number */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
   -webkit-appearance: none; 
