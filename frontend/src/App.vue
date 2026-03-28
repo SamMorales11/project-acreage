@@ -2,6 +2,18 @@
 import { ref, onMounted, watch } from 'vue'
 import api from './services/api'
 import Chart from 'chart.js/auto'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow
+});
 
 const form = ref({
   luas_tanah: 100,
@@ -15,7 +27,89 @@ const predictionResult = ref(0)
 const isLoading = ref(false)
 let chartInstance = null
 
-// --- HELPER: FORMAT RUPIAH ---
+// --- GEOSPATIAL MAP LOGIC ---
+let map = null;
+let marker = null;
+const centerPoint = [-1.2379, 116.8529]; // Pusat Balikpapan
+const currentDistance = ref(0);
+const currentTierName = ref('Tier 2 • Urban Residential');
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return (R * c).toFixed(2);
+}
+
+const updateLocationScore = (lat, lng) => {
+  const distance = calculateDistance(centerPoint[0], centerPoint[1], lat, lng);
+  currentDistance.value = distance;
+
+  if (distance <= 3) {
+    form.value.lokasi_skor = 3;
+    currentTierName.value = 'Tier 3 • Central Business District';
+  } else if (distance <= 8) {
+    form.value.lokasi_skor = 2;
+    currentTierName.value = 'Tier 2 • Urban Residential';
+  } else {
+    form.value.lokasi_skor = 1;
+    currentTierName.value = 'Tier 1 • Outskirts / Rural';
+  }
+};
+
+const initMap = () => {
+  // 1. Batasi area panning agar tidak nyasar keluar Kaltim
+  const bounds = [
+    [-1.4, 116.6], // Barat Daya
+    [-1.1, 117.1]  // Timur Laut
+  ];
+
+  map = L.map('map', {
+    zoomControl: true, // Tampilkan kontrol zoom untuk navigasi lebih mudah
+    maxBounds: bounds, // Kunci peta di area ini
+    maxBoundsViscosity: 1.0,
+    minZoom: 11
+  }).setView(centerPoint, 13); // Zoom awal diperbesar agar area kota terlihat jelas
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; CartoDB'
+  }).addTo(map);
+
+  // 2. Gambar Zona Radius Tier 3 (Pusat Kota / CBD) - 3km
+  L.circle(centerPoint, {
+    color: '#3b82f6', // Biru terang
+    fillColor: '#3b82f6',
+    fillOpacity: 0.15,
+    radius: 3000, // dalam meter
+    weight: 2,
+    dashArray: '5, 5'
+  }).addTo(map);
+
+  // 3. Gambar Zona Radius Tier 2 (Urban) - 8km
+  L.circle(centerPoint, {
+    color: '#6366f1', // Indigo
+    fillColor: '#6366f1',
+    fillOpacity: 0.05,
+    radius: 8000, // dalam meter
+    weight: 1,
+    dashArray: '5, 5'
+  }).addTo(map);
+
+  // Pin diletakkan di tengah kota
+  const startPos = [-1.2450, 116.8600];
+  marker = L.marker(startPos, { draggable: true }).addTo(map);
+  
+  updateLocationScore(startPos[0], startPos[1]);
+
+  marker.on('dragend', function () {
+    const position = marker.getLatLng();
+    updateLocationScore(position.lat, position.lng);
+  });
+};
+
 const formatRupiah = (number) => {
   const fullValue = number * 1000000;
   return new Intl.NumberFormat('id-ID', {
@@ -26,7 +120,6 @@ const formatRupiah = (number) => {
   }).format(fullValue);
 }
 
-// --- HELPER: DEBOUNCE FUNCTION ---
 const debounce = (fn, delay) => {
   let timeoutId;
   return (...args) => {
@@ -37,7 +130,6 @@ const debounce = (fn, delay) => {
   };
 };
 
-// --- API CALLS ---
 const getPrediction = async () => {
   isLoading.value = true
   try {
@@ -69,7 +161,6 @@ const loadAnalytics = async () => {
   }
 }
 
-// --- REAL-TIME WATCHER ---
 const debouncedPredict = debounce(() => {
   getPrediction();
 }, 300);
@@ -78,8 +169,6 @@ watch(form, () => {
   debouncedPredict();
 }, { deep: true });
 
-
-// --- CHART LOGIC ---
 const renderChart = (labels, values) => {
   const ctx = document.getElementById('importanceChart')
   if (chartInstance) chartInstance.destroy()
@@ -149,6 +238,7 @@ const renderChart = (labels, values) => {
 }
 
 onMounted(() => {
+  initMap();
   loadAnalytics();
   getPrediction(); 
 })
@@ -236,15 +326,17 @@ onMounted(() => {
             </div>
 
             <div class="space-y-3 pt-2">
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Strategic Tier</label>
-              <div class="relative">
-                <select v-model="form.lokasi_skor" class="w-full rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-3 text-white appearance-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all cursor-pointer">
-                  <option value="1">Tier 1 • Outskirts / Rural</option>
-                  <option value="2">Tier 2 • Urban Residential</option>
-                  <option value="3">Tier 3 • Central Business District</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              <div class="flex justify-between items-end">
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Strategic Tier</label>
+                <div class="text-right">
+                  <span class="text-blue-400 font-bold text-xs block">{{ currentTierName }}</span>
+                  <span class="text-slate-500 font-mono text-[10px]">{{ currentDistance }} km from center</span>
+                </div>
+              </div>
+              <div class="relative w-full h-64 rounded-xl overflow-hidden border border-slate-600 shadow-inner group">
+                <div id="map" class="w-full h-full z-0"></div>
+                <div class="absolute top-2 right-2 z-10 bg-[#0f172a]/90 backdrop-blur-sm px-2 py-1 rounded-md border border-slate-700 pointer-events-none">
+                  <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Drag Pin 📍</span>
                 </div>
               </div>
             </div>
@@ -304,14 +396,14 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-xl font-bold tracking-tight text-white italic uppercase">Acreage<span class="text-blue-500">.</span></span>
-          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v2.1.0</span>
+          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v3.0.0</span>
         </div>
         <div class="text-center md:text-right">
           <p class="text-[11px] font-medium text-slate-400 tracking-widest uppercase">
             &copy; 2026 Engineered by <span class="text-blue-400 font-bold">Samuel</span>
           </p>
           <p class="text-[10px] text-slate-600 mt-1 font-mono">
-            STACK: VUE 3 / FASTAPI / SCIKIT-LEARN
+            STACK: VUE 3 / FASTAPI / SCIKIT-LEARN / LEAFLET
           </p>
         </div>
       </div>
@@ -320,7 +412,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Custom Styling untuk Slider */
 .custom-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -350,7 +441,6 @@ onMounted(() => {
   transform: scale(1.2);
 }
 
-/* Menghilangkan panah pada input number */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
   -webkit-appearance: none; 
@@ -358,5 +448,21 @@ input[type=number]::-webkit-outer-spin-button {
 }
 input[type=number] {
   -moz-appearance: textfield;
+}
+
+:deep(.leaflet-container) {
+  background-color: #0f172a;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Memperbaiki Attribution Leaflet agar menyatu dengan Dark Mode */
+:deep(.leaflet-control-attribution) {
+  background-color: rgba(15, 23, 42, 0.7) !important;
+  color: #64748b !important;
+  border-radius: 4px 0 0 0;
+}
+:deep(.leaflet-control-attribution a) {
+  color: #3b82f6 !important;
+  text-decoration: none;
 }
 </style>
