@@ -5,6 +5,7 @@ import Chart from 'chart.js/auto'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+// Memperbaiki masalah default icon Leaflet di Vue/Vite
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -26,6 +27,13 @@ const form = ref({
 const predictionResult = ref(0)
 const isLoading = ref(false)
 let chartInstance = null
+
+// --- STATE BARU: METRIK EVALUASI MODEL ---
+const modelMetrics = ref({
+  mae: 0,
+  rmse: 0,
+  r2: 0
+})
 
 // --- GEOSPATIAL MAP LOGIC ---
 let map = null;
@@ -61,44 +69,40 @@ const updateLocationScore = (lat, lng) => {
 };
 
 const initMap = () => {
-  // 1. Batasi area panning agar tidak nyasar keluar Kaltim
   const bounds = [
-    [-1.4, 116.6], // Barat Daya
-    [-1.1, 117.1]  // Timur Laut
+    [-1.4, 116.6], 
+    [-1.1, 117.1]  
   ];
 
   map = L.map('map', {
-    zoomControl: true, // Tampilkan kontrol zoom untuk navigasi lebih mudah
-    maxBounds: bounds, // Kunci peta di area ini
+    zoomControl: true, 
+    maxBounds: bounds, 
     maxBoundsViscosity: 1.0,
     minZoom: 11
-  }).setView(centerPoint, 13); // Zoom awal diperbesar agar area kota terlihat jelas
+  }).setView(centerPoint, 13); 
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; CartoDB'
   }).addTo(map);
 
-  // 2. Gambar Zona Radius Tier 3 (Pusat Kota / CBD) - 3km
   L.circle(centerPoint, {
-    color: '#3b82f6', // Biru terang
+    color: '#3b82f6', 
     fillColor: '#3b82f6',
     fillOpacity: 0.15,
-    radius: 3000, // dalam meter
+    radius: 3000, 
     weight: 2,
     dashArray: '5, 5'
   }).addTo(map);
 
-  // 3. Gambar Zona Radius Tier 2 (Urban) - 8km
   L.circle(centerPoint, {
-    color: '#6366f1', // Indigo
+    color: '#6366f1', 
     fillColor: '#6366f1',
     fillOpacity: 0.05,
-    radius: 8000, // dalam meter
+    radius: 8000, 
     weight: 1,
     dashArray: '5, 5'
   }).addTo(map);
 
-  // Pin diletakkan di tengah kota
   const startPos = [-1.2450, 116.8600];
   marker = L.marker(startPos, { draggable: true }).addTo(map);
   
@@ -130,6 +134,7 @@ const debounce = (fn, delay) => {
   };
 };
 
+// --- API CALLS ---
 const getPrediction = async () => {
   isLoading.value = true
   try {
@@ -140,7 +145,6 @@ const getPrediction = async () => {
       kamar_mandi: Number(form.value.kamar_mandi),
       lokasi_skor: Number(form.value.lokasi_skor)
     }
-    
     const response = await api.predictPrice(payload)
     predictionResult.value = response.data.estimasi_harga
   } catch (error) {
@@ -158,6 +162,16 @@ const loadAnalytics = async () => {
     }
   } catch (error) {
     console.error("Gagal memuat data analitik:", error)
+  }
+}
+
+// FUNGSI BARU: MENGAMBIL METRIK EVALUASI
+const loadMetrics = async () => {
+  try {
+    const response = await api.getMetrics()
+    modelMetrics.value = response.data
+  } catch (error) {
+    console.error("Gagal memuat metrik evaluasi:", error)
   }
 }
 
@@ -240,6 +254,7 @@ const renderChart = (labels, values) => {
 onMounted(() => {
   initMap();
   loadAnalytics();
+  loadMetrics(); // Panggil data metrik saat aplikasi dimuat
   getPrediction(); 
 })
 </script>
@@ -376,6 +391,43 @@ onMounted(() => {
             </div>
           </div>
 
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <div class="bg-[#1e293b] rounded-2xl border border-slate-700/50 p-5 shadow-xl relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+              <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg class="w-10 h-10 text-emerald-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1.177-7.86l-2.765-2.767L6.643 12.8l4.18 4.18 8.487-8.487-1.415-1.414-7.072 7.072z"></path></svg>
+              </div>
+              <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> R-Squared (R²)
+              </h4>
+              <p class="text-3xl font-black text-emerald-400 font-mono mt-2">
+                {{ (modelMetrics.r2 * 100).toFixed(1) }}<span class="text-lg text-emerald-600">%</span>
+              </p>
+              <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">Mewakili persentase variasi harga yang berhasil dijelaskan oleh model.</p>
+            </div>
+
+            <div class="bg-[#1e293b] rounded-2xl border border-slate-700/50 p-5 shadow-xl relative overflow-hidden group hover:border-amber-500/30 transition-colors">
+               <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Mean Abs. Error
+              </h4>
+              <p class="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-2 truncate" :title="formatRupiah(modelMetrics.mae)">
+                <span class="text-sm text-amber-600 mr-1">±</span>{{ formatRupiah(modelMetrics.mae).replace('Rp', '').trim() }}
+              </p>
+              <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">Rata-rata margin kesalahan absolut pada setiap tebakan prediksi.</p>
+            </div>
+
+            <div class="bg-[#1e293b] rounded-2xl border border-slate-700/50 p-5 shadow-xl relative overflow-hidden group hover:border-rose-500/30 transition-colors">
+               <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Root Mean Sq. Error
+              </h4>
+              <p class="text-xl sm:text-2xl font-black text-rose-400 font-mono mt-2 truncate" :title="formatRupiah(modelMetrics.rmse)">
+                 <span class="text-sm text-rose-600 mr-1">±</span>{{ formatRupiah(modelMetrics.rmse).replace('Rp', '').trim() }}
+              </p>
+              <p class="text-[10px] text-slate-500 mt-2 font-medium leading-tight">Penalti untuk kesalahan tebakan ekstrem (outliers) pada data.</p>
+            </div>
+
+          </div>
+
           <div class="bg-[#1e293b] rounded-2xl border border-slate-700/50 p-6 shadow-xl">
             <div class="flex justify-between items-end mb-6">
               <div>
@@ -396,7 +448,7 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-xl font-bold tracking-tight text-white italic uppercase">Acreage<span class="text-blue-500">.</span></span>
-          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v3.0.0</span>
+          <span class="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">v4.0.0</span>
         </div>
         <div class="text-center md:text-right">
           <p class="text-[11px] font-medium text-slate-400 tracking-widest uppercase">
@@ -455,7 +507,6 @@ input[type=number] {
   font-family: 'Inter', sans-serif;
 }
 
-/* Memperbaiki Attribution Leaflet agar menyatu dengan Dark Mode */
 :deep(.leaflet-control-attribution) {
   background-color: rgba(15, 23, 42, 0.7) !important;
   color: #64748b !important;

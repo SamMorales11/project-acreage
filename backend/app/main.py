@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import os
+import json
 import numpy as np
 
 app = FastAPI()
@@ -15,9 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup Path yang lebih aman
+# Setup Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "rf_model.joblib")
+METRICS_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "metrics.json")
 
 # Muat model saat startup
 try:
@@ -44,7 +46,6 @@ async def predict(data: PropertyInput):
         raise HTTPException(status_code=500, detail="Machine Learning model is not loaded on server.")
     
     try:
-        # Konversi ke array 2D untuk Scikit-Learn
         input_data = np.array([[
             data.luas_tanah, 
             data.luas_bangunan, 
@@ -61,6 +62,16 @@ async def predict(data: PropertyInput):
 
 @app.get("/analytics/features")
 async def get_features():
-    # Placeholder jika file feature_importance tidak ada
     return {"labels": ["Luas Tanah", "Luas Bangunan", "Kamar Tidur", "Kamar Mandi", "Lokasi"], 
             "values": [35, 30, 10, 5, 20]}
+
+# 🌟 ENDPOINT BARU UNTUK EVALUASI MODEL 🌟
+@app.get("/analytics/metrics")
+async def get_metrics():
+    if os.path.exists(METRICS_PATH):
+        with open(METRICS_PATH, "r") as f:
+            metrics = json.load(f)
+        return metrics
+    else:
+        # Kembalikan nilai 0 jika file belum ada
+        return {"mae": 0, "rmse": 0, "r2": 0}
